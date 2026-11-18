@@ -1,0 +1,22 @@
+{
+  "name": "tablero-trafico-ani",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tablero interactivo para el análisis, cálculo y estimación del tráfico vehicular y el recaudo en los peajes de la ANI, con generación de informe en PDF.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "report": "node scripts/report.js",
+    "test": "node --test test/tablero.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^1.1.1",
+    "chart.js": "^4.6.1",
+    "express": "^5.3.0",
+    "pdfkit": "^0.20.2"
+  }
+}

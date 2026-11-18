@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tablero ANI · Tráfico vehicular y estimación de recaudo</title>
+<link rel="stylesheet" href="/styles.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f2557'/%3E%3Cpath d='M8 22V15m6 7V10m6 12v-5' stroke='%2360a5fa' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E" />
+</head>
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="26" height="26"><path d="M7 24V16m9 8V8m9 16v-6" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" fill="none"/></svg>
+      </div>
+      <div>
+        <div class="brand-title">Tablero de tráfico vehicular</div>
+        <div class="brand-sub">Peajes ANI · análisis, cálculo y estimación</div>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs" role="tablist">
+      <button class="tab active" data-view="resumen" role="tab">Resumen</button>
+      <button class="tab" data-view="analisis" role="tab">Análisis</button>
+      <button class="tab" data-view="estimacion" role="tab">Estimación</button>
+      <button class="tab" data-view="calidad" role="tab">Datos</button>
+      <button class="tab tab-cta" data-view="informe" role="tab">Informe PDF</button>
+    </nav>
+    <div class="source-pill" id="sourcePill" title="Archivo de datos cargado">
+      <span class="dot"></span><span id="sourceText">cargando datos…</span>
+    </div>
+  </header>
+
+  <section class="filters" aria-label="Filtros globales">
+    <div class="filter-group">
+      <label>Periodo</label>
+      <div class="range">
+        <select id="desde" aria-label="Desde"></select>
+        <span class="range-sep">→</span>
+        <select id="hasta" aria-label="Hasta"></select>
+      </div>
+    </div>
+    <div class="filter-group grow">
+      <label>Peajes <span class="counter" id="peajeCount">todos</span></label>
+      <div class="multi" id="peajeMulti"></div>
+    </div>
+    <div class="filter-group grow">
+      <label>Categorías tarifarias <span class="counter" id="catCount">todas</span></label>
+      <div class="multi" id="catMulti"></div>
+    </div>
+    <div class="filter-actions">
+      <button class="btn ghost" id="resetFilters">Restablecer</button>
+      <button class="btn ghost" id="exportCsv" title="Descargar resumen por peaje en CSV">CSV</button>
+    </div>
+  </section>
+
+  <main id="views">
+    <!-- RESUMEN -->
+    <section class="view active" id="view-resumen">
+      <div class="kpis" id="kpiGrid"></div>
+      <div class="grid-2">
+        <article class="card span-2">
+          <header class="card-head">
+            <h2>Evolución mensual</h2>
+            <div class="card-tools">
+              <label class="switch"><input type="checkbox" id="showRecaudo" checked><span>Ver recaudo</span></label>
+            </div>
+          </header>
+          <div class="chart-wrap tall"><canvas id="chartMonthly"></canvas></div>
+          <p class="note" id="monthlyNote"></p>
+        </article>
+      </div>
+      <div class="grid-2">
+        <article class="card">
+          <header class="card-head"><h2>Top peajes por tráfico</h2><span class="tag">Top 12</span></header>
+          <div class="chart-wrap"><canvas id="chartTopPeajes"></canvas></div>
+        </article>
+        <article class="card">
+          <header class="card-head"><h2>Composición por categoría</h2></header>
+          <div class="chart-wrap"><canvas id="chartCategorias"></canvas></div>
+        </article>
+      </div>
+      <article class="card">
+        <header class="card-head"><h2>Hallazgos automáticos</h2><span class="tag" id="findingsTag"></span></header>
+        <ul class="findings" id="findingsList"></ul>
+      </article>
+    </section>
+
+    <!-- ANALISIS -->
+    <section class="view" id="view-analisis">
+      <div class="grid-2">
+        <article class="card">
+          <header class="card-head"><h2>Comparativo anual</h2></header>
+          <div class="chart-wrap"><canvas id="chartYearly"></canvas></div>
+        </article>
+        <article class="card">
+          <header class="card-head"><h2>Estacionalidad</h2><span class="tag">índice vs promedio</span></header>
+          <div class="chart-wrap"><canvas id="chartSeasonal"></canvas></div>
+        </article>
+      </div>
+      <div class="grid-3" id="miniStats"></div>
+      <article class="card">
+        <header class="card-head"><h2>Resumen anual</h2><span class="tag">años completos y parciales</span></header>
+        <div class="table-scroll"><table class="data" id="yearlyTable"></table></div>
+        <p class="note">Las variaciones solo se calculan entre años completos; en los años parciales la comparación no es válida.</p>
+      </article>
+      <div class="grid-2">
+        <article class="card">
+          <header class="card-head"><h2>Ranking de peajes</h2><span class="tag">tabla completa</span></header>
+          <div class="table-tools">
+            <input type="search" id="rankingSearch" placeholder="Buscar peaje…" />
+            <select id="rankingSort">
+              <option value="trafico">Ordenar por tráfico</option>
+              <option value="recaudo">Ordenar por recaudo</option>
+              <option value="tasaEvasion">Ordenar por evasión</option>
+              <option value="tarifaPromedio">Ordenar por tarifa</option>
+            </select>
+          </div>
+          <div class="table-scroll"><table class="data" id="rankingTable"></table></div>
+        </article>
+        <article class="card">
+          <header class="card-head"><h2>Categorías tarifarias</h2></header>
+          <div class="table-scroll"><table class="data" id="catsTable"></table></div>
+        </article>
+      </div>
+      <div class="grid-2">
+        <article class="card">
+          <header class="card-head"><h2>Tráfico vs tarifa por peaje</h2></header>
+          <div class="chart-wrap"><canvas id="chartScatter"></canvas></div>
+        </article>
+        <article class="card">
+          <header class="card-head"><h2>Meses atípicos</h2><span class="tag">z-score ≥ 3</span></header>
+          <div class="table-scroll"><table class="data" id="anomalyTable"></table></div>
+          <p class="note">Los meses atípicos se detectan con un z-score robusto (mediana y MAD) sobre la serie de tráfico filtrada.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ESTIMACION -->
+    <section class="view" id="view-estimacion">
+      <div class="estimator">
+        <aside class="card params">
+          <header class="card-head"><h2>Parámetros del cálculo</h2></header>
+          <div class="field">
+            <label for="estPeaje">Alcance del pronóstico</label>
+            <select id="estPeaje"><option value="">Peajes filtrados (agregado)</option></select>
+            <small>Si elige un peaje, el modelo se entrena solo con su serie histórica.</small>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="estHorizonte">Horizonte (meses)</label>
+              <input type="number" id="estHorizonte" min="1" max="36" value="12" />
+            </div>
+            <div class="field">
+              <label for="estVentana">Ventana de entrenamiento</label>
+              <input type="number" id="estVentana" min="6" max="120" value="36" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="estTarifa">Tarifa promedio (COP) <span class="hint" id="tarifaHint"></span></label>
+            <input type="number" id="estTarifa" step="100" placeholder="usar tarifa del periodo" />
+            <small>Déjelo vacío para usar la tarifa promedio del periodo filtrado.</small>
+          </div>
+          <div class="field">
+            <label for="estTarifaGrowth">Ajuste anual de tarifa (%)</label>
+            <input type="range" id="estTarifaGrowth" min="-10" max="25" step="0.5" value="0" />
+            <output id="estTarifaGrowthOut">0,0%</output>
+          </div>
+          <div class="field">
+            <label for="estTrafficAdj">Ajuste de tráfico (%)</label>
+            <input type="range" id="estTrafficAdj" min="-30" max="30" step="0.5" value="0" />
+            <output id="estTrafficAdjOut">0,0%</output>
+          </div>
+          <div class="scenarios">
+            <span>Escenarios rápidos</span>
+            <div class="chips">
+              <button class="chip" data-scenario="conservador">Conservador</button>
+              <button class="chip" data-scenario="base">Base</button>
+              <button class="chip" data-scenario="optimista">Optimista</button>
+            </div>
+          </div>
+          <button class="btn primary block" id="runEstimate">Calcular estimación</button>
+          <p class="note tiny" id="estNote">El cálculo usa tendencia + estacionalidad y la tarifa promedio observada.</p>
+        </aside>
+
+        <div class="results">
+          <div class="kpis" id="estKpis"></div>
+          <article class="card">
+            <header class="card-head">
+              <h2>Pronóstico de tráfico</h2>
+              <span class="tag" id="estMethod"></span>
+            </header>
+            <div class="chart-wrap tall"><canvas id="chartForecast"></canvas></div>
+            <p class="note" id="estAccuracy"></p>
+          </article>
+          <article class="card">
+            <header class="card-head"><h2>Recaudo estimado por mes</h2><span class="tag">COP</span></header>
+            <div class="chart-wrap"><canvas id="chartEstimation"></canvas></div>
+          </article>
+          <article class="card">
+            <header class="card-head"><h2>Detalle de la proyección</h2>
+              <button class="btn ghost small" id="downloadEstCsv">Descargar CSV</button>
+            </header>
+            <div class="table-scroll"><table class="data" id="estTable"></table></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- DATOS -->
+    <section class="view" id="view-calidad">
+      <div class="grid-2">
+        <article class="card">
+          <header class="card-head"><h2>Fuente de datos</h2></header>
+          <div id="sourceCard" class="source-card"></div>
+        </article>
+        <article class="card">
+          <header class="card-head"><h2>Reglas de validación</h2><span class="tag">auditoría del archivo</span></header>
+          <div class="table-scroll"><table class="data" id="qualityTable"></table></div>
+          <p class="note">Las reglas no eliminan registros: se informan para que el analista pondere la confianza de los indicadores.</p>
+        </article>
+      </div>
+      <article class="card">
+        <header class="card-head"><h2>Cargar un nuevo corte de datos</h2><span class="tag">CSV ANI</span></header>
+        <div class="upload">
+          <div class="upload-zone" id="dropZone">
+            <input type="file" id="csvInput" accept=".csv,text/csv" hidden />
+            <div class="upload-icon">CSV</div>
+            <div>
+              <b>Arrastre el archivo o haga clic para seleccionarlo</b>
+              <p>Debe conservar las columnas IdPeaje, Peaje, CategoriaTarifa, Desde, Hasta, ValorTarifa, CantidadTrafico, CantidadEvasores y CantidadExentos787. El archivo se usa en memoria para el tablero y el informe.</p>
+            </div>
+            <button class="btn ghost small" id="pickCsv" type="button">Seleccionar archivo</button>
+          </div>
+          <p class="note tiny">Si el archivo supera los 100 MB, ubíquelo en <code>data/</code> y reinicie el servidor con la variable <code>CSV_PATH</code>.</p>
+        </div>
+      </article>
+      <article class="card">
+        <header class="card-head"><h2>Cobertura de peajes</h2><span class="tag">meses con datos por peaje</span></header>
+        <div class="table-scroll tall"><table class="data" id="coverageTable"></table></div>
+      </article>
+    </section>
+
+    <!-- INFORME -->
+    <section class="view" id="view-informe">
+      <div class="report-layout">
+        <aside class="card params">
+          <header class="card-head"><h2>Configurar informe</h2></header>
+          <div class="field">
+            <label for="repTitulo">Título</label>
+            <input type="text" id="repTitulo" value="Informe de tráfico vehicular — peajes ANI" maxlength="160" />
+          </div>
+          <div class="field-row">
+            <div class="field"><label for="repEntidad">Entidad / área</label><input type="text" id="repEntidad" placeholder="ANI · Vicepresidencia" /></div>
+            <div class="field"><label for="repAutor">Elaborado por</label><input type="text" id="repAutor" placeholder="Nombre" /></div>
+          </div>
+          <div class="field">
+            <label for="repNotas">Notas al pie del informe</label>
+            <textarea id="repNotas" rows="3" placeholder="Supuestos, aclaraciones o fuente complementaria…"></textarea>
+          </div>
+          <div class="field">
+            <label>Secciones incluidas</label>
+            <div class="checks">
+              <label><input type="checkbox" checked data-section="analisis"> Análisis de tráfico</label>
+              <label><input type="checkbox" checked data-section="ranking"> Ranking y categorías</label>
+              <label><input type="checkbox" checked data-section="estimacion"> Pronóstico y estimación</label>
+              <label><input type="checkbox" checked data-section="calidad"> Calidad de datos</label>
+              <label><input type="checkbox" checked data-section="recomendaciones"> Hallazgos y recomendaciones</label>
+            </div>
+          </div>
+          <div class="summary-box" id="reportSummary"></div>
+          <button class="btn primary block" id="generatePdf">Generar informe PDF</button>
+          <p class="note tiny">El PDF incluye portada, resumen ejecutivo, gráficos, tablas, hallazgos y metodología. Usa el periodo y los filtros activos.</p>
+        </aside>
+        <div class="preview">
+          <div class="preview-frame" id="pdfFrameWrap">
+            <div class="preview-empty" id="previewEmpty">
+              <div class="preview-icon">PDF</div>
+              <h3>Informe listo para generar</h3>
+              <p>Configure el título y las secciones, revise el resumen y genere el documento. Se abrirá en el visor integrado.</p>
+              <ul class="preview-list">
+                <li>Portada con periodo, cobertura y fuente</li>
+                <li>Resumen ejecutivo con indicadores y variaciones</li>
+                <li>Gráficos de evolución, ranking, estacionalidad y pronóstico</li>
+                <li>Tablas de detalle, calidad de datos y metodología</li>
+              </ul>
+            </div>
+            <iframe id="pdfFrame" title="Informe PDF" hidden></iframe>
+            <div class="loading" id="pdfLoading" hidden><div class="spinner"></div><p>Generando informe…</p></div>
+          </div>
+          <div class="preview-actions" id="pdfActions" hidden>
+            <a class="btn ghost" id="openPdf" target="_blank" rel="noopener">Abrir en pestaña</a>
+            <a class="btn primary" id="downloadPdf" download>Descargar PDF</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>Fuente: archivo de tráfico vehicular de peajes ANI · cifras estimadas con fines analíticos.</span>
+    <span id="footerMeta"></span>
+  </footer>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+<script src="/vendor/chart.umd.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
